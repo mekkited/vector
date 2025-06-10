@@ -1,5 +1,5 @@
 // Filename: index.js
-// This is the main server file, now with high-quality settings.
+// This server now accepts advanced options for high-quality vectorization.
 
 const express = require('express');
 const multer = require('multer');
@@ -11,26 +11,36 @@ const Jimp = require('jimp');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 2. Setup CORS (Cross-Origin Resource Sharing)
+// 2. Setup CORS and Multer
+// We need to use express.json() to parse the incoming options
 app.use(cors());
-
-// 3. Setup Multer for file uploads
+app.use(express.json()); 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// 4. Create the main page route (for testing)
+// 3. Main page route for testing
 app.get('/', (req, res) => {
-    res.send('Image Vectorizer Backend is running! Using High-Quality Settings.');
+    res.send('Advanced Vectorizer Backend is running!');
 });
 
-// 5. Create the /vectorize endpoint
+// 4. Create the /vectorize endpoint
+// It now uses upload.single() as middleware to handle both file and text fields
 app.post('/vectorize', upload.single('image'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No image file uploaded.');
     }
 
     try {
-        console.log('Received image for high-quality vectorization:', req.file.originalname);
+        // 5. Parse the options sent from the frontend
+        let options = {};
+        if (req.body.options) {
+            try {
+                options = JSON.parse(req.body.options);
+                console.log('Received options:', options);
+            } catch (e) {
+                return res.status(400).send('Invalid options format.');
+            }
+        }
 
         const image = await Jimp.read(req.file.buffer);
         const imageData = {
@@ -39,19 +49,18 @@ app.post('/vectorize', upload.single('image'), async (req, res) => {
             data: image.bitmap.data,
         };
 
-        // 6. Use imagetracerjs with the 'posterized3' preset for high detail.
-        // This provides a great balance of color and detail for complex images.
-        const svgString = ImageTracer.imagedataToSVG(imageData, 'posterized3');
+        // 6. Use imagetracerjs with the user-provided options
+        const svgString = ImageTracer.imagedataToSVG(imageData, options);
 
-        console.log('Successfully vectorized image with high quality.');
+        console.log('Successfully vectorized image with custom options.');
 
         // 7. Send the SVG back to the user
         res.setHeader('Content-Type', 'image/svg+xml');
-        res.setHeader('Content-Disposition', `attachment; filename="vectorized-image-hq.svg"`);
+        res.setHeader('Content-Disposition', 'attachment; filename="vectorized-advanced.svg"');
         res.send(svgString);
 
     } catch (error) {
-        console.error('Error during high-quality vectorization:', error);
+        console.error('Error during vectorization:', error);
         res.status(500).send('An error occurred during vectorization.');
     }
 });

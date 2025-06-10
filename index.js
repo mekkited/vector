@@ -4,28 +4,26 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
-const { vectorize } = require('@neplex/vectorizer');
+const ImageTracer = require('imagetracerjs');
+const Jimp = require('jimp');
 
 // 1. Initialize Express App
 const app = express();
 const port = process.env.PORT || 3000;
 
 // 2. Setup CORS (Cross-Origin Resource Sharing)
-// This is CRITICAL. It allows your Blogger/GitHub page to communicate with this server.
 app.use(cors());
 
 // 3. Setup Multer for file uploads
-// We'll store the uploaded image in memory to process it.
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // 4. Create the main page route (for testing)
 app.get('/', (req, res) => {
-    res.send('Image Vectorizer Backend is running! Ready to receive images on the /vectorize endpoint.');
+    res.send('Image Vectorizer Backend is running! Using ImageTracer.js.');
 });
 
 // 5. Create the /vectorize endpoint
-// This is where the magic happens.
 app.post('/vectorize', upload.single('image'), async (req, res) => {
     // Check if an image was uploaded
     if (!req.file) {
@@ -35,17 +33,27 @@ app.post('/vectorize', upload.single('image'), async (req, res) => {
     try {
         console.log('Received image:', req.file.originalname);
 
-        // Get the image data from the request
-        const imageBuffer = req.file.buffer;
+        // Use the 'jimp' library to read the image buffer
+        const image = await Jimp.read(req.file.buffer);
 
-        // Use the vectorizer library to convert the image buffer to an SVG string
-        // We can add more advanced options here later if needed.
-        const svgString = await vectorize(imageBuffer);
+        // Create an ImageData-like object that imagetracerjs can understand
+        const imageData = {
+            width: image.bitmap.width,
+            height: image.bitmap.height,
+            data: image.bitmap.data,
+        };
+
+        // 6. Use imagetracerjs to convert the image data to an SVG string
+        const svgString = ImageTracer.imagedataToSVG(imageData, {
+            ltres: 1,
+            qtres: 1,
+            pathomit: 8,
+            rightangleenhance: true
+        });
 
         console.log('Successfully vectorized image.');
 
-        // 6. Send the SVG back to the user
-        // Set headers to tell the browser it's an SVG file and to prompt a download
+        // 7. Send the SVG back to the user
         res.setHeader('Content-Type', 'image/svg+xml');
         res.setHeader('Content-Disposition', `attachment; filename="vectorized-image.svg"`);
         res.send(svgString);
@@ -56,7 +64,7 @@ app.post('/vectorize', upload.single('image'), async (req, res) => {
     }
 });
 
-// 7. Start the server
+// 8. Start the server
 app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
 });
